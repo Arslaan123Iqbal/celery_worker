@@ -5,7 +5,10 @@ from django.core.mail import send_mail
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from celerytask import settings
+import datetime
 import logging
+import os
+import csv
 logger = logging.getLogger(__name__)
 
 options = Options()
@@ -67,11 +70,10 @@ def scraper(URL, title, price):
        products.append(dictPro)
 
     return products
-
 @shared_task
-def scrape_amazon(text):
+def scrape_amazon(search):
     products = []
-    driver.get(f"https://www.amazon.com/s?k={text}&crid=3PQNRF6AM6CIA&sprefix=mobil%2Caps%2C425&ref=nb_sb_noss_2")
+    driver.get(f"https://www.amazon.com/s?k={search}&crid=3PQNRF6AM6CIA&sprefix=mobil%2Caps%2C425&ref=nb_sb_noss_2")
     product_titles = driver.find_elements(By.CLASS_NAME, 'a-size-medium.a-color-base.a-text-normal')
     product_prices = driver.find_elements(By.CLASS_NAME, 'a-price-whole')
     for title, price in  zip(product_titles, product_prices):
@@ -80,6 +82,66 @@ def scrape_amazon(text):
        "price": price.text
        }
        products.append(dictPro)
+    # fileDate = datetime.datetime.now()
+    # filename = f"{fileDate}.csv"
 
+    # # get current working directory
+    # current_directory = os.getcwd()
+
+    # # full path to csv file
+    # filepath = os.path.join(current_directory, filename)
+
+    # # writing to csv file
+    # with open(filepath, 'w', newline='') as csvfile:
+    #     # creating a csv writer object
+    #     fieldnames = ['title', 'price']
+    #     writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+        
+    #     # writing the header row
+    #     writer.writeheader()
+        
+    #     # writing the rows
+    #     for row in products:
+    #         writer.writerow(row)
     return products
 
+@shared_task
+def scrape_daraz(search):
+    print("Here")
+    
+    products = []
+    driver.get(f"https://www.alibaba.com/trade/search?tab=all&searchText={search}")
+    product_titles = driver.find_elements(By.CLASS_NAME, 'elements-title-normal__content.large')
+    product_prices = driver.find_elements(By.CLASS_NAME, 'elements-offer-price-normal__price')
+    
+
+    for title, price in  zip(product_titles, product_prices):
+       dictPro  = {
+      "title":title.text,
+       "price": price.text
+       }
+       products.append(dictPro)
+
+    # fileDate = datetime.datetime.now()
+    # filename = f"{fileDate}.csv"
+
+    # get current working directory
+    # current_directory = os.getcwd()
+
+    # full path to csv file
+    # filepath = os.path.join(current_directory, filename)
+
+    # # writing to csv file
+    # with open(filepath, 'w', newline='') as csvfile:
+    #     # creating a csv writer object
+    #     fieldnames = ['title', 'price']
+    #     writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+        
+    #     # writing the header row
+    #     writer.writeheader()
+        
+    #     # writing the rows
+    #     for row in products:
+    #         writer.writerow(row)
+    
+    return products

@@ -1,7 +1,12 @@
 from django.shortcuts import render,HttpResponse
+from rest_framework.response import Response
+from rest_framework import status
 from django.http import JsonResponse
+from rest_framework.decorators import api_view
+from .models import ScrapeTask
 from celery.result import AsyncResult
-from .tasks import test_func,scrape_page,scrape_amazon
+from .tasks import test_func,scrape_page,scrape_amazon,scrape_daraz
+from.serializers import ScraperSerializer
 from celery import group
 import logging
 logger = logging.getLogger(__name__)
@@ -21,11 +26,76 @@ def scrape_view(request):
     result = scrape_page.delay(url)
     data = result.get()
     return JsonResponse({'data': data})
+@api_view(['GET'])
+def test2(request, search):
+    data = ScrapeTask.objects.all()
+    serializers = ScraperSerializer(data=data, many=True)
+    serializers.is_valid()
 
-def test2(request, pk):
-    result = scrape_amazon.apply_async(args=[pk])
-    task_id = result.task_id
-    return JsonResponse({'task_id': task_id})
+    ordered_dict_list = (serializers.data)
+    task_ids = [d['task_id'] for d in ordered_dict_list]
+    searches = [d['search'] for d in ordered_dict_list]
+    if search not in searches:
+        # task1 = scrape_daraz.s(search)
+        # task2 = scrape_amazon.s(search) 
+        # result = group(task1,task2).apply_async()
+        result1 = scrape_daraz.apply_async(args=[search])
+        # task_ids = [task.id for task in result]
+        # result.join()
+        result = AsyncResult(result1.id)    
+        if result.state == 'PENDING':
+            response = {
+                'state': result.state,
+                'status': 'Pending...'
+            }
+        elif result.state == 'PROGRESS':
+            response = {
+                'state': result.state,
+                'status': 'In progress...'
+            }
+        elif result.state == 'SUCCESS':
+            response = {
+                'state': result.state,
+                'status': 'Success!',
+                'data': result.get()
+            }
+        else:
+            response = {
+                'state': result.state,
+                'status': 'An error occurred.'
+            }
+        return JsonResponse(response, safe=False)
+            
+
+        
+        # for task_id in task_ids:
+        #     result = AsyncResult(task_id)
+        #     if result.state == 'PENDING':
+        #         response = {
+        #             'state': result.state,
+        #             'status': 'Pending...'
+        #         }
+        #     elif result.state == 'PROGRESS':
+        #         response = {
+        #             'state': result.state,
+        #             'status': 'In progress...'
+        #         }
+        #     elif result.state == 'SUCCESS':
+        #         response = {
+        #             'state': result.state,
+        #             'status': 'Success!',
+        #             'data': result.get()
+        #         }
+        #     else:
+        #         response = {
+        #             'state': result.state,
+        #             'status': 'An error occurred.'
+        #         }
+        #     return JsonResponse(response, safe=False)
+    if search in searches:
+        index = searches.index(search)
+        return Response({'task_id_of':task_ids[index]})
+    
 
 def task_status(request, task_id):
     result = AsyncResult(task_id)
@@ -51,3 +121,13 @@ def task_status(request, task_id):
             'status': 'An error occurred.'
         }
     return JsonResponse(response, safe=False)
+@api_view(['GET'])
+def getData(request):
+    data = ScrapeTask.objects.all()
+    serializers = ScraperSerializer(data=data, many=True)
+    serializers.is_valid()
+    return Response({
+        "data":serializers.data
+    })
+
+
