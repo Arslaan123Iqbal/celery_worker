@@ -28,21 +28,19 @@ def scrape_view(request):
     return JsonResponse({'data': data})
 @api_view(['GET'])
 def test2(request, search):
-    data = ScrapeTask.objects.all()
-    serializers = ScraperSerializer(data=data, many=True)
-    serializers.is_valid()
-
-    ordered_dict_list = (serializers.data)
-    task_ids = [d['task_id'] for d in ordered_dict_list]
-    searches = [d['search'] for d in ordered_dict_list]
-    if search not in searches:
-        # task1 = scrape_daraz.s(search)
-        # task2 = scrape_amazon.s(search) 
-        # result = group(task1,task2).apply_async()
-        result1 = scrape_daraz.apply_async(args=[search])
-        # task_ids = [task.id for task in result]
-        # result.join()
-        result = AsyncResult(result1.id)    
+    data = ScrapeTask.objects.filter(search__contains=search)
+    serializer = ScraperSerializer(data=data, many=True)
+    serializer.is_valid()
+    task_id = [item['task_id'] for item in serializer.data]
+    searchIndex = ([item['search'] for item in serializer.data])
+    if len(searchIndex) == 0:
+        resultdata = scrape_amazon.apply_async(args=[search])
+        serializer  = ScraperSerializer(data= {"task_id":resultdata.id,"search":search})
+        serializer.is_valid()
+        serializer.save()
+        return Response({"state":"INITIATED"})
+    if searchIndex[0] == search:
+        result = AsyncResult(task_id[0])
         if result.state == 'PENDING':
             response = {
                 'state': result.state,
@@ -64,37 +62,46 @@ def test2(request, search):
                 'state': result.state,
                 'status': 'An error occurred.'
             }
-        return JsonResponse(response, safe=False)
+        return Response(response)
+    # task_ids = [d['task_id'] for d in ordered_dict_list]
+    # searches = [d['search'] for d in ordered_dict_list]
+    # result1 = None
+    # if search not in searches:
+    #     # task1 = scrape_daraz.s(search)
+    #     # task2 = scrape_amazon.s(search) 
+    #     # result = group(task1,task2).apply_async()
+    #     result1 = scrape_daraz.apply_async(args=[search])
+        
+    #     # task_ids = [task.id for task in result]
+    #     # result.join()
+    #     result = AsyncResult(result1.id)    
+    #     if result.state == 'PENDING':
+    #         response = {
+    #             'state': result.state,
+    #             'status': 'Pending...'
+    #         }
+    #     elif result.state == 'PROGRESS':
+    #         response = {
+    #             'state': result.state,
+    #             'status': 'In progress...'
+    #         }
+    #     elif result.state == 'SUCCESS':
+    #         response = {
+    #             'state': result.state,
+    #             'status': 'Success!',
+    #             'data': result.get()
+    #         }
+    #     else:
+    #         response = {
+    #             'state': result.state,
+    #             'status': 'An error occurred.'
+    #         }
+    #     return JsonResponse(response, safe=False)
             
 
-        
-        # for task_id in task_ids:
-        #     result = AsyncResult(task_id)
-        #     if result.state == 'PENDING':
-        #         response = {
-        #             'state': result.state,
-        #             'status': 'Pending...'
-        #         }
-        #     elif result.state == 'PROGRESS':
-        #         response = {
-        #             'state': result.state,
-        #             'status': 'In progress...'
-        #         }
-        #     elif result.state == 'SUCCESS':
-        #         response = {
-        #             'state': result.state,
-        #             'status': 'Success!',
-        #             'data': result.get()
-        #         }
-        #     else:
-        #         response = {
-        #             'state': result.state,
-        #             'status': 'An error occurred.'
-        #         }
-        #     return JsonResponse(response, safe=False)
-    if search in searches:
-        index = searches.index(search)
-        return Response({'task_id_of':task_ids[index]})
+    # if search in searches:
+    #     index = searches.index(search)
+    #     return Response({'task_id_of':result1.id})
     
 
 def task_status(request, task_id):
